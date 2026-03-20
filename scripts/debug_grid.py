@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Debug: metric space, polygon seed, histogram axis refinement, row-clustered spacing."""
+"""Debug: metric space, polygon seed, histogram axis refinement, row-clustered spacing. TODO"""
 
 import sys, json
 from pathlib import Path

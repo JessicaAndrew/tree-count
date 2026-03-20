@@ -1,4 +1,4 @@
-"""Main FastAPI application for Aerobotics Missing Trees API. TODO"""
+""" Main FastAPI application for Aerobotics Missing Trees API. TODO"""
 
 import logging
 from pathlib import Path
@@ -6,10 +6,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
-from app.models import MissingTreesResponse
+from app.models import (HealthResponse, MissingTreesResponse, RootResponse, VisualizationResponse,)
 from app.aerobotics_client import AeroboticsClient
 from app.missing_trees import MissingTreesDetector
 from app.visualization import build_orchard_visualization
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -48,20 +49,33 @@ def _extract_tree_coordinate(tree: dict) -> tuple[float, float] | None:
 
 
 @app.get("/health", tags=["Health"])
-async def health_check():
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["Health"],
+    summary="Health check",
+    description="Returns service health status.",
+)
+async def health_check() -> HealthResponse:
     """Health check endpoint."""
-    return {"status": "healthy"}
+    return HealthResponse(status="healthy")
 
 
-@app.get("/", tags=["Health"])
-async def root():
+@app.get(
+    "/",
+    response_model=RootResponse,
+    tags=["Health"],
+    summary="Service information",
+    description="Returns quick links to key API endpoints.",
+)
+async def root() -> RootResponse:
     """Root endpoint with quick usage guidance."""
-    return {
-        "message": "Aerobotics Missing Trees API",
-        "health": "/health",
-        "docs": "/docs",
-        "missing_trees_example": "/orchards/216269/missing-trees",
-    }
+    return RootResponse(
+        message="Aerobotics Missing Trees API",
+        health="/health",
+        docs="/docs",
+        missing_trees_example="/orchards/216269/missing-trees",
+    )
 
 
 @app.get(
@@ -69,7 +83,24 @@ async def root():
     response_model=MissingTreesResponse,
     tags=["Orchards"],
     summary="Get missing trees for an orchard",
-    description="Returns GPS coordinates of missing trees for a given orchard",
+    description="Returns GPS coordinates of trees inferred to be missing from the latest survey for the orchard.",
+    responses={
+        200: {
+            "description": "Missing tree coordinates generated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "missing_trees": [
+                            {"lat": -32.328886, "lng": 18.825847},
+                            {"lat": -32.328788, "lng": 18.826424},
+                        ]
+                    }
+                }
+            },
+        },
+        404: {"description": "No surveys found for the given orchard"},
+        500: {"description": "Failed to fetch upstream data or compute missing trees"},
+    },
 )
 async def get_missing_trees(orchard_id: int) -> MissingTreesResponse:
     """
@@ -145,20 +176,42 @@ async def get_missing_trees(orchard_id: int) -> MissingTreesResponse:
 
 @app.get(
     "/orchards/{orchard_id}/visualization",
+    response_model=VisualizationResponse,
     tags=["Orchards"],
     summary="Generate orchard visualization",
-    description="Generates a PNG of orchard boundary, detected trees (blue), and missing trees (red)",
+    description="Generates a PNG showing orchard boundary, detected trees (blue), and missing trees (red).",
+    responses={
+        200: {
+            "description": "Visualization PNG generated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "image_url": "/outputs/orchard-216269.png",
+                        "metadata": {
+                            "orchard_id": 216269,
+                            "survey_id": 123456,
+                            "tree_count": 102,
+                            "missing_count": 5,
+                            "output_path": "outputs/orchard-216269.png",
+                        },
+                    }
+                }
+            },
+        },
+        500: {"description": "Failed to generate visualization"},
+    },
 )
-async def generate_orchard_visualization(orchard_id: int):
+async def generate_orchard_visualization(orchard_id: int) -> VisualizationResponse:
     """Generate and expose a visualization PNG for an orchard."""
     try:
         output_file = outputs_dir / f"orchard-{orchard_id}.png"
         metadata = build_orchard_visualization(orchard_id=orchard_id, output=output_file)
-        return {
-            "status": "ok",
-            "image_url": f"/outputs/{output_file.name}",
-            "metadata": metadata,
-        }
+        return VisualizationResponse(
+            status="ok",
+            image_url=f"/outputs/{output_file.name}",
+            metadata=metadata,
+        )
     except Exception as e:
         logger.error(f"Visualization failed for orchard {orchard_id}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate visualization: {str(e)}")

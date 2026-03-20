@@ -109,7 +109,7 @@ class AeroboticsClient:
         )
 
     def get_tree_surveys(self, survey_id: int) -> List[Dict[str, Any]]:
-        """Fetch tree survey point records for a specific survey.
+        """ Fetch tree survey point records for a specific survey.
 
             Args:
                 survey_id: The ID of the survey.
