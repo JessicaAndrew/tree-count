@@ -29,36 +29,33 @@ This approach is robust to rotated orchards, non-rectangular boundaries, and bou
 
 ## Quick Start (Development)
 
-### 1) Clone repository
+### 1) Create .env, with the following format
 ```bash
-git clone https://github.com/YOUR_USERNAME/tree-count.git
-cd tree-count
+# Aerobotics API Configuration
+API_KEY=<YOUR_KEY>
+APP_NAME="Aerobotics Missing Trees API"
+ENVIRONMENT=development
+DEBUG=false
+API_BASE_URL=https://api.aerobotics.com
 ```
 
-### 2) Create .env from template
-```bash
-cp .env.example .env
-# Edit .env and add your API_KEY
-```
-
-### 3) Create and activate virtualenv
+### 2) Create and activate virtualenv
 ```bash
 python3.12 -m venv venv
 source venv/bin/activate
 ```
 
-### 4) Install dependencies
+### 3) Install dependencies
 ```bash
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+make install-dev
 ```
 
-### 5) Run API locally
+### 4) Run API locally
 ```bash
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+make run
 ```
 
-### 6) Test endpoint
+### 5) Test endpoint
 ```bash
 # Example curl command from assessment
 HOSTNAME="aero-test.my-test-site.com"
@@ -70,15 +67,14 @@ curl \
 # Or for local testing:
 curl http://localhost:8000/orchards/216269/missing-trees
 
-# Generate visualization PNG + metadata
+# Generate visualisation PNG + metadata
 curl http://localhost:8000/orchards/216269/visualization
 ```
 
 ## API endpoints
 - `GET /health` → `{"status":"healthy"}`
-- `GET /orchards/{orchard_id}/missing-trees` → list of missing coordinates
+- `GET /orchards/{orchard_id}/missing-trees` → list of missing tree coordinates
 - `GET /orchards/{orchard_id}/visualization` → generates PNG and returns metadata + image URL
-- `GET /outputs/{file}` → serves generated visualization files
 
 ### Swagger docs
 - http://localhost:8000/docs
@@ -88,9 +84,9 @@ curl http://localhost:8000/orchards/216269/visualization
 pytest tests/ -v
 ```
 
-## Debugging grid normalization
+## Debugging grid normalisation
 
-Use the debug script to inspect normalized grid behavior:
+Use the debug script to inspect normalised grid behavior:
 
 ```bash
 python scripts/debug_grid.py
@@ -103,15 +99,20 @@ The script writes a diagnostic image to:
 ## Docker & Compose
 1) Build image:
 ```bash
-docker build -t aerobotics-api:latest .
+make docker-build
 ```
 2) Run service:
 ```bash
-docker-compose up -d
+make docker-up
 ```
 3) Health check:
 ```bash
 curl http://localhost:8000/health
+```
+
+3) Missing trees:
+```bash
+curl http://localhost:8000/orchards/216269/missing-trees
 ```
 
 ## File purpose summary
@@ -121,8 +122,8 @@ curl http://localhost:8000/health
 - `app/visualization.py`: orchard + detected trees + missing tree rendering
 - `app/models.py`: pydantic models
 - `app/config.py`: env config with pydantic-settings
-- `Dockerfile`/`docker-compose.yml`: containerization
-- `scripts/debug_grid.py`: normalization diagnostics and plotting
+- `Dockerfile`/`docker-compose.yml`: containerisation
+- `scripts/debug_grid.py`: normalisation diagnostics and plotting
 - `setup-dev.sh`: setup script
 - `requirements*.txt`: dependencies
 - `pytest.ini`, `setup.cfg`, `pyproject.toml`: testing and lint config
