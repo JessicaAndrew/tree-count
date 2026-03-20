@@ -8,104 +8,90 @@ from app.models import GpsCoordinate
 class TestMissingTreesDetector:
     """Test cases for MissingTreesDetector."""
 
+    def test_parse_polygon_string_valid(self):
+        """Test valid polygon parsing."""
+        polygon_str = "18.0,-33.0 18.002,-33.0 18.002,-33.002 18.0,-33.002 18.0,-33.0"
+
+        polygon = MissingTreesDetector.parse_polygon_string(polygon_str)
+
+        assert polygon is not None
+        assert polygon.is_valid
+
+    def test_parse_polygon_string_invalid(self):
+        """Test invalid polygon parsing returns None."""
+        polygon_str = "18.0,-33.0 18.001,-33.001"
+
+        polygon = MissingTreesDetector.parse_polygon_string(polygon_str)
+
+        assert polygon is None
+
     def test_detect_missing_trees_empty_detected_trees(self):
         """Test detection with no detected trees."""
-        bounds = (-33.0, -32.0, 18.0, 19.0)
+        polygon = "18.0,-33.0 18.002,-33.0 18.002,-33.002 18.0,-33.002 18.0,-33.0"
         detected_trees = []
 
         result = MissingTreesDetector.detect_missing_trees(
-            orchard_bounds=bounds,
+            orchard_polygon=polygon,
             detected_trees=detected_trees,
         )
 
         assert result == []
 
-    def test_detect_missing_trees_with_detected_trees(self):
-        """Test detection with some detected trees."""
-        # Small orchard bounds
-        bounds = (-33.0, -33.001, 18.0, 18.001)
-
-        # One detected tree at the center
+    def test_detect_missing_trees_invalid_polygon(self):
+        """Test invalid polygon returns empty result."""
         detected_trees = [(-33.0005, 18.0005)]
 
         result = MissingTreesDetector.detect_missing_trees(
-            orchard_bounds=bounds,
+            orchard_polygon="invalid",
             detected_trees=detected_trees,
-            row_spacing=0.0005,
-            tree_spacing=0.0005,
-            threshold=0.0003,
         )
 
-        # Should detect missing trees (excluding the detected one)
-        assert isinstance(result, list)
-        assert all(isinstance(tree, GpsCoordinate) for tree in result)
+        assert result == []
 
-    def test_detect_missing_trees_all_present(self):
-        """Test when all expected trees are detected."""
-        # Create a small grid
-        bounds = (-33.0, -33.0005, 18.0, 18.0005)
+    def test_detect_missing_trees_detects_center_gap(self):
+        """Test detector can find a missing center tree in a near-regular grid."""
+        polygon = "18.0,-33.0 18.0012,-33.0 18.0012,-33.0012 18.0,-33.0012 18.0,-33.0"
 
-        # Trees at grid points
         detected_trees = [
             (-33.0, 18.0),
-            (-33.0005, 18.0),
             (-33.0, 18.0005),
-            (-33.0005, 18.0005),
+            (-33.0, 18.0010),
+            (-33.0005, 18.0),
+            (-33.0005, 18.0010),
+            (-33.0010, 18.0),
+            (-33.0010, 18.0005),
+            (-33.0010, 18.0010),
         ]
 
         result = MissingTreesDetector.detect_missing_trees(
-            orchard_bounds=bounds,
+            orchard_polygon=polygon,
             detected_trees=detected_trees,
             row_spacing=0.0005,
             tree_spacing=0.0005,
-            threshold=0.0001,
+            threshold=0.00015,
         )
 
-        # Should detect zero or very few missing trees
-        assert len(result) <= 1  # Allow for rounding
+        assert isinstance(result, list)
+        assert all(isinstance(tree, GpsCoordinate) for tree in result)
+        assert any(abs(tree.lat - (-33.0005)) < 0.0002 and abs(tree.lng - 18.0005) < 0.0002 for tree in result)
 
-    def test_generate_grid(self):
-        """Test grid generation."""
-        min_lat, max_lat = -33.0, -33.001
-        min_lng, max_lng = 18.0, 18.001
+    def test_metric_projection_round_trip(self):
+        """Test metric conversion round-trip preserves coordinates closely."""
+        import numpy as np
 
-        grid = MissingTreesDetector._generate_grid(
-            min_lat=min_lat,
-            max_lat=max_lat,
-            min_lng=min_lng,
-            max_lng=max_lng,
-            row_spacing=0.0005,
-            tree_spacing=0.0005,
-        )
+        points = np.array([
+            [-33.0, 18.0],
+            [-33.0005, 18.0005],
+            [-33.001, 18.001],
+        ], dtype=float)
 
-        assert isinstance(grid, list)
-        assert len(grid) > 0
-        assert all(isinstance(point, tuple) and len(point) == 2 for point in grid)
+        metric_points, mean_lat_rad = MissingTreesDetector._to_metric_points(points)
+        recovered = [MissingTreesDetector._from_metric_point(point, mean_lat_rad) for point in metric_points]
 
-        # Check bounds
-        lats = [lat for lat, lng in grid]
-        lngs = [lng for lat, lng in grid]
-        assert min(lats) >= min_lat
-        assert max(lats) <= max_lat
-        assert min(lngs) >= min_lng
-        assert max(lngs) <= max_lng
-
-    def test_grid_point_coverage(self):
-        """Test that grid covers the full bounds."""
-        min_lat, max_lat = -33.0, -33.002
-        min_lng, max_lng = 18.0, 18.002
-
-        grid = MissingTreesDetector._generate_grid(
-            min_lat=min_lat,
-            max_lat=max_lat,
-            min_lng=min_lng,
-            max_lng=max_lng,
-            row_spacing=0.001,
-            tree_spacing=0.001,
-        )
-
-        # With 0.001 spacing, we should have at least 3x3 = 9 points
-        assert len(grid) >= 9
+        assert len(recovered) == len(points)
+        for (lat_expected, lng_expected), (lat_actual, lng_actual) in zip(points, recovered):
+            assert abs(lat_expected - lat_actual) < 1e-9
+            assert abs(lng_expected - lng_actual) < 1e-9
 
     def test_gps_coordinate_model(self):
         """Test GPS coordinate model."""
