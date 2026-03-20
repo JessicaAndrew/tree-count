@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     """ Application settings. """
     app_name: str = "Aerobotics Missing Trees API"
     app_version: str = "1.0.0"
-    api_base_url: str = "https://api.aerobotics.com/api/v1"
+    api_base_url: str = "https://api.aerobotics.com"
     api_key: Optional[str] = None
     environment: str = "development"
     debug: bool = False

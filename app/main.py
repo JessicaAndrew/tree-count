@@ -1,12 +1,15 @@
 """Main FastAPI application for Aerobotics Missing Trees API. TODO"""
 
 import logging
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.models import MissingTreesResponse
 from app.aerobotics_client import AeroboticsClient
 from app.missing_trees import MissingTreesDetector
+from app.visualization import build_orchard_visualization
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +31,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+outputs_dir = Path("outputs")
+outputs_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/outputs", StaticFiles(directory=str(outputs_dir)), name="outputs")
+
 
 def _extract_tree_coordinate(tree: dict) -> tuple[float, float] | None:
     """Extract (lat, lng) from common tree payload variants."""
@@ -44,6 +51,17 @@ def _extract_tree_coordinate(tree: dict) -> tuple[float, float] | None:
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.get("/", tags=["Health"])
+async def root():
+    """Root endpoint with quick usage guidance."""
+    return {
+        "message": "Aerobotics Missing Trees API",
+        "health": "/health",
+        "docs": "/docs",
+        "missing_trees_example": "/orchards/216269/missing-trees",
+    }
 
 
 @app.get(
@@ -123,6 +141,27 @@ async def get_missing_trees(orchard_id: int) -> MissingTreesResponse:
             status_code=500,
             detail=f"Failed to process orchard: {str(e)}",
         )
+
+
+@app.get(
+    "/orchards/{orchard_id}/visualization",
+    tags=["Orchards"],
+    summary="Generate orchard visualization",
+    description="Generates a PNG of orchard boundary, detected trees (blue), and missing trees (red)",
+)
+async def generate_orchard_visualization(orchard_id: int):
+    """Generate and expose a visualization PNG for an orchard."""
+    try:
+        output_file = outputs_dir / f"orchard-{orchard_id}.png"
+        metadata = build_orchard_visualization(orchard_id=orchard_id, output=output_file)
+        return {
+            "status": "ok",
+            "image_url": f"/outputs/{output_file.name}",
+            "metadata": metadata,
+        }
+    except Exception as e:
+        logger.error(f"Visualization failed for orchard {orchard_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate visualization: {str(e)}")
 
 
 if __name__ == "__main__":

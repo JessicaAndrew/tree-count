@@ -1,9 +1,12 @@
 """ Client for interacting with Aerobotics API. """
 
-import requests
-from typing import List, Dict, Any, Optional
-from app.config import settings
 import logging
+from datetime import date
+from typing import Any, Dict, List, Optional
+
+import requests
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +22,13 @@ class AeroboticsClient:
         """
         self.api_key = api_key or settings.api_key
         self.base_url = settings.api_base_url
+
+        if not self.api_key:
+            raise ValueError("API_KEY is not configured. Set API_KEY in your environment or .env file.")
+
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
+            "accept": "application/json",
             "Content-Type": "application/json",
         }
 
@@ -95,22 +103,24 @@ class AeroboticsClient:
         if not surveys:
             return None
 
-        # Surveys are returned in reverse chronological order (newest first)
-        return surveys[0]
+        return max(
+            surveys,
+            key=lambda survey: date.fromisoformat(survey.get("date", "1900-01-01")),
+        )
 
     def get_tree_surveys(self, survey_id: int) -> List[Dict[str, Any]]:
-        """ Fetch tree surveys for a specific survey.
+        """Fetch tree survey point records for a specific survey.
 
             Args:
                 survey_id: The ID of the survey.
 
             Returns:
-                List of tree survey records with lat/lng coordinates.
+                List of tree detections for the survey.
 
             Raises:
                 requests.HTTPError: If API call fails.
         """
-        url = f"{self.base_url}/farming/surveys/{survey_id}/trees/"
+        url = f"{self.base_url}/farming/surveys/{survey_id}/tree_surveys/"
         response = requests.get(url, headers=self.headers)
         response.raise_for_status()
 
