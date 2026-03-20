@@ -1,3 +1,5 @@
+PORT ?= 8000
+
 .PHONY: help install install-dev test test-cov lint format run docker-build docker-up docker-down clean
 
 help:
@@ -44,20 +46,20 @@ format:
 	isort app tests
 
 run:
-	python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	python -m uvicorn app.main:app --reload --host 0.0.0.0 --port $(PORT)
 
 run-prod:
-	gunicorn --bind 0.0.0.0:8000 --workers 4 --timeout 60 app.main:app
+	gunicorn --bind 0.0.0.0:$(PORT) --workers 4 --worker-class uvicorn.workers.UvicornWorker --timeout 60 app.main:app
 
 docker-build:
 	docker build -t aerobotics-api:latest .
 
 docker-up:
-	docker-compose up -d
-	docker-compose logs -f
+	docker compose up -d
+	docker compose logs -f
 
 docker-down:
-	docker-compose down
+	docker compose down
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
