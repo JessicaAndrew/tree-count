@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Debug: metric space, polygon seed, histogram axis refinement, row-clustered spacing. TODO"""
+""" Debug: metric space, polygon seed, histogram axis refinement, row-clustered spacing. """
 
 import sys, json
 from pathlib import Path
@@ -10,11 +10,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from app.missing_trees import MissingTreesDetector
 
+
 CACHE_FILE = PROJECT_ROOT / "outputs" / "debug_cache_216269.json"
 METERS_PER_DEG_LAT = 111320.0
 
 
 def load_data(orchard_id: int = 216269):
+    """ Fetches from Aerobotics API (or uses cached JSON to avoid slow API calls during iteration). """
     if CACHE_FILE.exists():
         print("Using cached data...")
         with open(CACHE_FILE) as f:
@@ -34,24 +36,29 @@ def load_data(orchard_id: int = 216269):
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(CACHE_FILE, "w") as f:
         json.dump({"polygon_str": orchard.get("polygon",""), "detected_trees": data}, f)
+        
     return orchard.get("polygon",""), [(t[0], t[1]) for t in data]
 
 
 def to_meters(latlon: np.ndarray):
+    """ Convert (lat, lng) to metric coordinates (y, x) in meters, using a local approximation based on the mean latitude. """
     mean_lat_rad = np.radians(latlon[:, 0].mean())
     y = latlon[:, 0] * METERS_PER_DEG_LAT
     x = latlon[:, 1] * METERS_PER_DEG_LAT * np.cos(mean_lat_rad)
+
     return np.column_stack([y, x]), mean_lat_rad
 
 
 def from_meters(pts_m: np.ndarray, mean_lat_rad: float):
+    """ Convert metric coordinates (y, x) back to (lat, lng) using the mean latitude for scaling. """
     lat = pts_m[:, 0] / METERS_PER_DEG_LAT
     lng = pts_m[:, 1] / (METERS_PER_DEG_LAT * np.cos(mean_lat_rad))
+
     return np.column_stack([lat, lng])
 
 
 def polygon_seed_angle(poly, mean_lat_rad: float):
-    """Longest polygon edge angle in metric space (0°=east, 90°=north)."""
+    """ Longest polygon edge angle in metric space (0°=east, 90°=north). """
     coords = list(poly.exterior.coords)
     best_angle, longest = 0.0, 0.0
     for i in range(len(coords) - 1):
@@ -62,13 +69,14 @@ def polygon_seed_angle(poly, mean_lat_rad: float):
         if length > longest:
             longest = length
             best_angle = np.arctan2(dy, dx)
+
     return best_angle
 
 
 def histogram_row_angle(pts_m: np.ndarray, seed_rad: float, n_neighbors: int = 6):
-    """
-    Compute inter-tree vector angles in metric space.
-    arctan2(dy, dx): 0°=east, 90°=north, folded to [0,180).
+    """ Compute inter-tree vector angles in metric space.
+        
+        arctan2(dy, dx): 0°=east, 90°=north, folded to [0,180).
     """
     angles = []
     for i, pt in enumerate(pts_m):
@@ -89,27 +97,30 @@ def histogram_row_angle(pts_m: np.ndarray, seed_rad: float, n_neighbors: int = 6
     seed_deg = np.degrees(seed_rad) % 180
     prox = np.exp(-0.5 * ((centers - seed_deg) / 25) ** 2)
     row_deg = float(centers[np.argmax(hist_s * prox)])
+
     return row_deg, hist_s, centers
 
 
 def nearest_neighbor_spacing(pts_m: np.ndarray):
-    """Median nearest-neighbor distance — gives a robust rough spacing estimate."""
+    """ Median nearest-neighbor distance — gives a robust rough spacing estimate. """
     min_dists = []
     for i, pt in enumerate(pts_m):
         diffs = pts_m - pt
         dists = np.linalg.norm(diffs, axis=1)
         dists[i] = np.inf
         min_dists.append(np.min(dists))
+
     return float(np.median(min_dists))
 
 
 def estimate_spacings_m(pts_m: np.ndarray, axis_row_m, axis_col_m):
-    """
-    Estimate row and tree spacings in meters.
-    1. nearest-neighbor median → rough spacing
-    2. cluster by axis_col projection into rows
-    3. within-row gaps → tree_spacing
-    4. between-row gaps → row_spacing
+    """ Estimate row and tree spacings in meters.
+
+        Estimate row and tree spacings in meters.
+        1. nearest-neighbor median → rough spacing
+        2. cluster by axis_col projection into rows
+        3. within-row gaps → tree_spacing
+        4. between-row gaps → row_spacing
     """
     rough_sp = nearest_neighbor_spacing(pts_m)
     print(f"  Nearest-neighbor median: {rough_sp:.2f}m")
@@ -147,6 +158,7 @@ def estimate_spacings_m(pts_m: np.ndarray, axis_row_m, axis_col_m):
 
 
 def snap_and_find_missing(pts_m, axis_row_m, axis_col_m, row_sp, tree_sp, centroid_m):
+    """ Snap trees to nearest grid points and find missing interior cells. """
     grid_cells, raw = set(), []
     for pt in pts_m:
         rel = pt - centroid_m
@@ -175,6 +187,7 @@ def snap_and_find_missing(pts_m, axis_row_m, axis_col_m, row_sp, tree_sp, centro
 
 
 def debug_grid_visualization(orchard_id: int = 216269):
+    """ Main function to run the debug visualization for a specific orchard. """
     polygon_str, detected_trees = load_data(orchard_id)
     print(f"Trees: {len(detected_trees)}")
 
@@ -207,6 +220,9 @@ def debug_grid_visualization(orchard_id: int = 216269):
     print(f"Interior missing: {len(missing)}")
 
     # ---- 3-panel plot ----
+    # Left: GPS with polygon boundary + row/column arrows overlaid
+    # Center: Angle histogram with seed, row, and column lines
+    # Right: Normalised grid with detected trees (blue) and interior missing candidates (red)
     fig, axes_p = plt.subplots(1, 3, figsize=(22, 8))
 
     ax = axes_p[0]

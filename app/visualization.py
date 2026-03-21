@@ -1,4 +1,4 @@
-"""Utilities for rendering orchard and tree detections as an image. TODO"""
+""" Utilities for rendering orchard and tree detections as an image. """
 
 from __future__ import annotations
 
@@ -15,16 +15,17 @@ from app.missing_trees import MissingTreesDetector
 
 
 def _parse_polygon_string(polygon_str: str) -> List[Tuple[float, float]]:
-    """Parse polygon string format: 'lng,lat lng,lat ...' into (lng, lat)."""
+    """ Parse polygon string format: 'lng,lat lng,lat ...' into (lng, lat). """
     points: List[Tuple[float, float]] = []
     for pair in polygon_str.strip().split():
         lng_raw, lat_raw = pair.split(",")
         points.append((float(lng_raw), float(lat_raw)))
+    
     return points
 
 
 def _extract_tree_points(tree_surveys: List[dict]) -> List[Tuple[float, float]]:
-    """Extract tree points as (lng, lat) from survey payload."""
+    """ Extract tree points as (lng, lat) from survey payload. """
     points: List[Tuple[float, float]] = []
     for tree in tree_surveys:
         lat = tree.get("lat", tree.get("latitude"))
@@ -32,11 +33,12 @@ def _extract_tree_points(tree_surveys: List[dict]) -> List[Tuple[float, float]]:
         if lat is None or lng is None:
             continue
         points.append((float(lng), float(lat)))
+        
     return points
 
 
 def _extract_detected_trees(tree_surveys: List[dict]) -> List[Tuple[float, float]]:
-    """Extract tree points as (lat, lng) for missing-tree detector input."""
+    """ Extract tree points as (lat, lng) for missing-tree detector input. """
     points: List[Tuple[float, float]] = []
     for tree in tree_surveys:
         lat = tree.get("lat", tree.get("latitude"))
@@ -44,13 +46,14 @@ def _extract_detected_trees(tree_surveys: List[dict]) -> List[Tuple[float, float
         if lat is None or lng is None:
             continue
         points.append((float(lat), float(lng)))
+    
     return points
 
 
 def build_orchard_visualization(orchard_id: int, output: Path) -> Dict[str, int | str]:
-    """Fetch orchard+trees and save a PNG visualization.
+    """ Fetch orchard + trees and save a PNG visualization.
 
-    Returns metadata about the generated image.
+        Returns metadata about the generated image.
     """
     client = AeroboticsClient()
 

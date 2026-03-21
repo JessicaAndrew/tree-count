@@ -1,10 +1,11 @@
-""" Logic for detecting missing trees in an orchard. TODO"""
+""" Logic for detecting missing trees in an orchard. """
 
 import logging
 import numpy as np
 from typing import List, Tuple, Optional
 from shapely.geometry import Polygon, Point
 from app.models import GpsCoordinate
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,22 +17,23 @@ class MissingTreesDetector:
 
     @staticmethod
     def parse_polygon_string(polygon_str: str) -> Optional[Polygon]:
-        """
-        Parse polygon string in format "lng,lat lng,lat ..." into Shapely Polygon.
+        """ Parse polygon string in format "lng,lat lng,lat ..." into Shapely Polygon.
 
-        Args:
-            polygon_str: Polygon string from Aerobotics API
+            Args:
+                polygon_str: Polygon string from Aerobotics API
 
-        Returns:
-            Shapely Polygon object or None if parsing fails
+            Returns:
+                Shapely Polygon object or None if parsing fails
         """
         if not polygon_str:
             return None
 
         try:
             coords = []
+
             # Split by space to get "lng,lat" pairs
             pairs = polygon_str.strip().split()
+
             for pair in pairs:
                 lng, lat = pair.split(',')
                 coords.append((float(lng), float(lat)))
@@ -47,15 +49,15 @@ class MissingTreesDetector:
 
     @staticmethod
     def infer_row_direction_from_polygon(polygon: Polygon) -> float:
-        """
-        Infer the orchard row direction from the longest edge of the boundary polygon.
-        Rows are planted parallel to the longest boundary edge.
+        """ Infer the orchard row direction from the longest edge of the boundary polygon.
+            
+            Rows are planted parallel to the longest boundary edge.
 
-        Args:
-            polygon: Shapely Polygon of the orchard boundary (coords in lng, lat)
+            Args:
+                polygon: Shapely Polygon of the orchard boundary (coords in lng, lat)
 
-        Returns:
-            Angle in radians of the row direction in (lat, lng) space
+            Returns:
+                Angle in radians of the row direction in (lat, lng) space
         """
         coords = list(polygon.exterior.coords)
         best_angle = 0.0
@@ -64,6 +66,7 @@ class MissingTreesDetector:
         for i in range(len(coords) - 1):
             lng1, lat1 = coords[i]
             lng2, lat2 = coords[i + 1]
+
             # Edge length (approximate, degrees)
             dlng = lng2 - lng1
             dlat = lat2 - lat1
@@ -77,9 +80,9 @@ class MissingTreesDetector:
 
     @staticmethod
     def infer_row_direction(detected_trees: List[Tuple[float, float]]) -> float:
-        """
-        Fallback: infer row direction using PCA on detected tree positions.
-        Prefer infer_row_direction_from_polygon when polygon is available.
+        """ Fallback: infer row direction using PCA on detected tree positions.
+            
+            Prefer infer_row_direction_from_polygon when polygon is available.
         """
         if len(detected_trees) < 3:
             return 0.0
@@ -91,9 +94,11 @@ class MissingTreesDetector:
             eigenvalues, eigenvectors = np.linalg.eig(cov)
             principal_component = eigenvectors[:, np.argmax(eigenvalues)]
             angle = np.arctan2(principal_component[1], principal_component[0])
+
             return angle
         except Exception as e:
             logger.warning(f"Failed to infer row direction: {e}, using default")
+
             return 0.0
 
     @staticmethod
@@ -104,26 +109,27 @@ class MissingTreesDetector:
         tree_spacing: Optional[float] = None,
         threshold: Optional[float] = None,
     ) -> List[GpsCoordinate]:
-        """
-        Detect missing trees based on orchard polygon and detected trees.
+        """ Detect missing trees based on orchard polygon and detected trees.
 
-        Algorithm:
-        1. Parse orchard polygon boundary
-        2. Infer row direction from detected tree positions (PCA)
-        3. Normalize all detected trees to grid coordinates
-        4. Find actual grid cell indices (round to nearest integer)
-        5. Find empty grid cells adjacent to occupied cells
-        6. Return GPS coordinates of missing tree positions
+            Algorithm:
+            1. Parse polygon, convert trees to metric space
+            2. Find seed row angle from polygon longest edge
+            3. Refine row angle via histogram of inter-tree angles
+            4. Snap detected trees to integer grid cells in normalized space
+            5. Find empty cells with 4 occupied neighbors (interior), 3 occupied 
+               neighbors (boundary), or special 2-neighbor edge patterns
+            6. Apply polygon containment, threshold distance, and neighbor alignment checks
+            7. Return missing tree GPS coordinates
 
-        Args:
-            orchard_polygon: Polygon string "lng,lat lng,lat ..." from API
-            detected_trees: List of (lat, lng) tuples of detected trees
-            row_spacing: Spacing between rows (in degrees, ~0.00005 = 5.5m)
-            tree_spacing: Spacing between trees in a row (in degrees)
-            threshold: Distance threshold to match grid point to detected tree
+            Args:
+                orchard_polygon: Polygon string "lng,lat lng,lat ..." from API
+                detected_trees: List of (lat, lng) tuples of detected trees
+                row_spacing: Spacing between rows (in degrees, ~0.00005 = 5.5m)
+                tree_spacing: Spacing between trees in a row (in degrees)
+                threshold: Distance threshold to match grid point to detected tree
 
-        Returns:
-            List of GpsCoordinate objects for missing trees.
+            Returns:
+                List of GpsCoordinate objects for missing trees.
         """
         if not detected_trees:
             return []
@@ -305,26 +311,31 @@ class MissingTreesDetector:
                 missing_trees.append(GpsCoordinate(lat=round(cand_lat, 6), lng=round(cand_lng, 6)))
 
         logger.info(
-            f"Detected {len(missing_trees)} missing trees using metric grid normalization"
+            f"Detected {len(missing_trees)} missing trees using metric grid normalisation"
         )
         return missing_trees
 
     @staticmethod
     def _to_metric_points(points_lat_lng: np.ndarray) -> Tuple[np.ndarray, float]:
+        """ Convert lat/lng to local meters using equirectangular projection. """
         mean_lat_rad = float(np.radians(np.mean(points_lat_lng[:, 0])))
         y_m = points_lat_lng[:, 0] * MissingTreesDetector.METERS_PER_DEG_LAT
         x_m = points_lat_lng[:, 1] * MissingTreesDetector.METERS_PER_DEG_LAT * np.cos(mean_lat_rad)
         metric_points = np.column_stack([y_m, x_m])
+
         return metric_points, mean_lat_rad
 
     @staticmethod
     def _from_metric_point(point_m: np.ndarray, mean_lat_rad: float) -> Tuple[float, float]:
+        """ Convert local metric point back to lat/lng. """
         lat = float(point_m[0] / MissingTreesDetector.METERS_PER_DEG_LAT)
         lng = float(point_m[1] / (MissingTreesDetector.METERS_PER_DEG_LAT * np.cos(mean_lat_rad)))
+
         return lat, lng
 
     @staticmethod
     def _infer_row_direction_from_polygon_metric(polygon: Polygon, mean_lat_rad: float) -> float:
+        """ Infer the orchard row direction from the longest edge of the boundary polygon. """
         coords = list(polygon.exterior.coords)
         best_angle = 0.0
         longest = 0.0
@@ -345,6 +356,12 @@ class MissingTreesDetector:
 
     @staticmethod
     def _refine_row_angle_from_neighbors(metric_points: np.ndarray, seed_angle_rad: float, n_neighbors: int = 6) -> float:
+        """ Refines the row angle using inter-tree neighbor vectors. 
+        
+            Builds a histogram of angles between neighboring trees, picks the 
+            dominant peak near the seed angle to find the true row direction. 
+            Forces perpendicular column axis.
+        """
         if len(metric_points) < 3:
             return seed_angle_rad
 
@@ -373,6 +390,7 @@ class MissingTreesDetector:
         seed_deg = float(np.degrees(seed_angle_rad) % 180.0)
         proximity_weight = np.exp(-0.5 * ((centers - seed_deg) / 25.0) ** 2)
         row_deg = float(centers[int(np.argmax(hist_smooth * proximity_weight))])
+
         return float(np.radians(row_deg))
 
     @staticmethod
@@ -381,6 +399,7 @@ class MissingTreesDetector:
         axis_row: np.ndarray,
         axis_col: np.ndarray,
     ) -> Tuple[float, float]:
+        """ Estimate row and tree spacing in meters using using nearest-neighbor distances and row-clustered gap analysis. """
         if len(metric_points) < 3:
             return 5.0, 5.0
 
@@ -429,7 +448,7 @@ class MissingTreesDetector:
         axis_row: np.ndarray,
         axis_col: np.ndarray,
     ) -> Tuple[float, float]:
-        """Estimate lattice spacing independently along row/column axes using average local distances."""
+        """ Estimate lattice spacing independently along row/column axes using average local distances. """
         if len(detected_trees) < 3:
             return 0.00005, 0.00005
 
@@ -459,6 +478,7 @@ class MissingTreesDetector:
                     col_samples.append(col_component)
 
         def _average_smallest_cluster(samples: List[float], fallback: float) -> float:
+            """ Averages the smallest cluster of samples to find the dominant spacing. """
             if not samples:
                 return fallback
             values = np.array(sorted(samples), dtype=float)
@@ -469,4 +489,3 @@ class MissingTreesDetector:
         col_spacing = _average_smallest_cluster(col_samples, row_spacing)
 
         return row_spacing, col_spacing
-

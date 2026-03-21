@@ -1,4 +1,4 @@
-""" Main FastAPI application for Aerobotics Missing Trees API. TODO"""
+""" Main FastAPI application for Aerobotics Missing Trees API. """
 
 import logging
 from pathlib import Path
@@ -38,7 +38,7 @@ app.mount("/outputs", StaticFiles(directory=str(outputs_dir)), name="outputs")
 
 
 def _extract_tree_coordinate(tree: dict) -> tuple[float, float] | None:
-    """Extract (lat, lng) from common tree payload variants."""
+    """ Extract (lat, lng) from common tree payload variants. """
     lat = tree.get("lat", tree.get("latitude"))
     lng = tree.get("lng", tree.get("longitude"))
 
@@ -57,7 +57,7 @@ def _extract_tree_coordinate(tree: dict) -> tuple[float, float] | None:
     description="Returns service health status.",
 )
 async def health_check() -> HealthResponse:
-    """Health check endpoint."""
+    """ Health check endpoint. """
     return HealthResponse(status="healthy")
 
 
@@ -69,7 +69,7 @@ async def health_check() -> HealthResponse:
     description="Returns quick links to key API endpoints.",
 )
 async def root() -> RootResponse:
-    """Root endpoint with quick usage guidance."""
+    """ Root endpoint with quick usage guidance. """
     return RootResponse(
         message="Aerobotics Missing Trees API",
         health="/health",
@@ -103,20 +103,19 @@ async def root() -> RootResponse:
     },
 )
 async def get_missing_trees(orchard_id: int) -> MissingTreesResponse:
-    """
-    Get missing trees for a specific orchard.
+    """ Get missing trees for a specific orchard.
 
-    Args:
-        orchard_id: The ID of the orchard to analyze
+        Args:
+            orchard_id: The ID of the orchard to analyze
 
-    Returns:
-        MissingTreesResponse containing list of missing tree GPS coordinates
+        Returns:
+            MissingTreesResponse containing list of missing tree GPS coordinates
 
-    Raises:
-        HTTPException: If orchard not found or API call fails
+        Raises:
+            HTTPException: If orchard not found or API call fails
     """
     try:
-        # Initialize Aerobotics client
+        # Initialise Aerobotics client
         client = AeroboticsClient()
 
         # Fetch orchard details
@@ -203,7 +202,7 @@ async def get_missing_trees(orchard_id: int) -> MissingTreesResponse:
     },
 )
 async def generate_orchard_visualization(orchard_id: int) -> VisualizationResponse:
-    """Generate and expose a visualization PNG for an orchard."""
+    """ Generate and expose a visualization PNG for an orchard. """
     try:
         output_file = outputs_dir / f"orchard-{orchard_id}.png"
         metadata = build_orchard_visualization(orchard_id=orchard_id, output=output_file)
