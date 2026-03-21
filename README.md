@@ -132,8 +132,8 @@ API_BASE_URL=https://api.aerobotics.com
 
 3) Wait for deploy to become live, then verify:
 ```bash
-curl https://<your-service>.onrender.com/health
-curl https://<your-service>.onrender.com/orchards/216269/missing-trees
+curl https://tree-count-8oxw.onrender.com/health
+curl https://tree-count-8oxw.onrender.com/orchards/216269/missing-trees
 ```
 
 4) Assessment command format:
