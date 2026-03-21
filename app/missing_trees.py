@@ -359,7 +359,7 @@ class MissingTreesDetector:
         """ Refines the row angle using inter-tree neighbor vectors. 
         
             Builds a histogram of angles between neighboring trees, picks the 
-            dominant peak near the seed angle to find the true row direction. 
+            dominant peak near the seed angle to find the true row direction.
             Forces perpendicular column axis.
         """
         if len(metric_points) < 3:

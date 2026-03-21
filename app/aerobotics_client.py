@@ -34,7 +34,7 @@ class AeroboticsClient:
 
     @staticmethod
     def _extract_list(payload: Any) -> List[Dict[str, Any]]:
-        """Extract list-like records from common API response envelopes."""
+        """ Extract list-like records from common API response envelopes. """
         if isinstance(payload, list):
             return payload
 

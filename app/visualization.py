@@ -20,7 +20,7 @@ def _parse_polygon_string(polygon_str: str) -> List[Tuple[float, float]]:
     for pair in polygon_str.strip().split():
         lng_raw, lat_raw = pair.split(",")
         points.append((float(lng_raw), float(lat_raw)))
-    
+
     return points
 
 
@@ -33,7 +33,7 @@ def _extract_tree_points(tree_surveys: List[dict]) -> List[Tuple[float, float]]:
         if lat is None or lng is None:
             continue
         points.append((float(lng), float(lat)))
-        
+
     return points
 
 
@@ -46,7 +46,7 @@ def _extract_detected_trees(tree_surveys: List[dict]) -> List[Tuple[float, float
         if lat is None or lng is None:
             continue
         points.append((float(lat), float(lng)))
-    
+
     return points
 
 
